@@ -1,3 +1,4 @@
+from os import name
 import discord
 import requests
 import json
@@ -18,20 +19,60 @@ def get_gif():
     return page_url
 
 def get_standings():
-    url = "https://hyprace-api.p.rapidapi.com/v1/drivers-standings"
-    querystring = {"pageSize":"-2147483648"}
-    headers = {
-	    "x-rapidapi-key": api_key,
-	    "x-rapidapi-host": "hyprace-api.p.rapidapi.com"
-    }
+    url = "https://api.jolpi.ca/ergast/f1/2025/driverstandings/"
+    response = requests.get(url)
+    data = response.json()
 
-    response = requests.get(url, headers=headers, params=querystring)
-    return response.json()
+    # Navigate to the correct part of the JSON
+    try:
+        standings = data["MRData"]["StandingsTable"]["StandingsLists"][0]["DriverStandings"]
+    except (KeyError, IndexError):
+        return "No standings data available."
+
+    message = "**F1 Driver Standings:**\n"
+    for driver in standings[:20]:  # Show top 20
+        pos = driver.get("position")
+        points = driver.get("points")
+        wins = driver.get("wins")
+        driver_info = driver.get("Driver", {})
+        name = f"{driver_info.get('givenName', '')} {driver_info.get('familyName', '')}"
+        team = driver.get("Constructors", [{}])[0].get("name", "Unknown")
+        message += f"{pos}. {name} ({team}) - {points} pts, {wins} wins\n"
+    return message
+
+def get_constructor_standings():
+  url = "https://api.jolpi.ca/ergast/f1/2025/constructorstandings/"
+  response = requests.get(url)
+  data = response.json()
+  standings = data["MRData"]["StandingsTable"]["StandingsLists"][0]["ConstructorStandings"]
+  message = "**F1 Constructor Standings:**\n"
+  for constructor in standings[:20]:
+    pos = constructor.get("position")
+    points = constructor.get("points")
+    wins = constructor.get("wins")
+    constructor_info = constructor.get("Constructor", {})
+    name = constructor_info.get("name", "")
+    message += f"{pos}. {name} - {points} pts, {wins} wins\n"
+  return message
+
+def get_results():
+  url = "https://api.jolpi.ca/ergast/f1/2025/results/"
+  response = requests.get(url)
+  data = response.json()
+  results = data["MRData"]["RaceTable"]["Races"][0]["Results"]
+  message = "**F1 Race Results:**\n"
+  for result in results[:20]:
+    pos = result.get("position")
+    driver_info = result.get("Driver", {})
+    name = f"{driver_info.get('givenName', '')} {driver_info.get('familyName', '')}"
+    message += f"{pos}. {name} - {result.get('points', 'N/A')} pts\n"
+  return message
 
 def help_message():
   help_text = """ Here are the commands you can use:
-$gif - Get a random F1 GIF
-$standings - Get the current F1 standings 
+$gif - Get a random F1 GIF 
+$standings - Get the current F1 standings
+$constructorstandings - Get the current F1 constructor standings
 $results - Get the most recent F1 race results 
 $schedule - Get the current F1 schedule 
 $news - Get the latest F1 news 
@@ -52,6 +93,10 @@ class MyClient(discord.Client):
       await message.channel.send(help_message())
     if message.content.startswith('$standings'):
       await message.channel.send(get_standings())
+    if message.content.startswith('$constructorstandings'):
+      await message.channel.send(get_constructor_standings())
+    if message.content.startswith('$results'):
+      await message.channel.send(get_results())
 
 intents = discord.Intents.default()
 intents.message_content = True
